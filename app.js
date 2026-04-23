@@ -510,7 +510,6 @@ function renderProcessedData() {
   renderGstr3bTable(gstReturns.gstr3b);
   renderVoucherTypeTable(voucherTypeSummary);
   renderSellerDownloadCards(sellerExports);
-  $("xmlPreview").textContent = xml;
   $("saveStatus").textContent = "Run ready hai. Save Run History button se Supabase me store kar sakte hain.";
   renderCompanySellerOptions(rows);
 }
