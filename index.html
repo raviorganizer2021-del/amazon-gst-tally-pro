@@ -128,6 +128,12 @@
               <input type="text" id="tallyCompanyGstin" placeholder="Leave blank to support all GSTINs">
             </label>
             <label>
+              <span>Map To Seller GSTIN</span>
+              <select id="companySellerGstin">
+                <option value="">Select Seller GSTIN</option>
+              </select>
+            </label>
+            <label>
               <span>Voucher Date Fallback</span>
               <input type="date" id="defaultDate">
             </label>
@@ -139,12 +145,19 @@
                 <option value="csv">Only CSV</option>
               </select>
             </label>
-          </div>
-          <div class="action-row">
-            <button class="btn btn-ghost" id="saveRunBtn">Save Run History</button>
-            <span class="subtle" id="saveStatus">Vercel API ke through Supabase save yahan show hoga.</span>
-          </div>
-        </section>
+            </div>
+            <div class="action-row">
+              <button class="btn btn-primary" id="addCompanyBtn">Add Company</button>
+              <button class="btn btn-ghost" id="saveRunBtn">Save Run History</button>
+              <span class="subtle" id="saveStatus">Vercel API ke through Supabase save yahan show hoga.</span>
+            </div>
+            <div class="table-card">
+              <h3>Saved Company Profiles</h3>
+              <div class="seller-downloads" id="companyCards">
+                <div class="empty-cell">Abhi koi company saved nahi hai.</div>
+              </div>
+            </div>
+          </section>
 
         <section class="card section-panel" id="importSection">
           <div class="section-header" id="import">
@@ -405,6 +418,13 @@
             <p class="subtle">Download separate files like `06AAHFO5288K1ZQ-B2B.csv`, `07AAHFO5288K1ZO-GSTR3B.json`, and GSTIN-wise Tally XML.</p>
             <div class="seller-downloads" id="sellerDownloads">
               <div class="empty-cell">No GSTIN-wise download cards yet.</div>
+            </div>
+          </div>
+          <div class="table-card">
+            <h3>GST Portal Treatment Check</h3>
+            <div class="subtle">
+              <p><strong>B2B refund/cancel:</strong> registered customer ke liye credit note/debit note route rakhna chahiye.</p>
+              <p><strong>B2C refund/cancel:</strong> unregistered large cases me separate credit/debit note, aur small B2C cases me net reporting apply ho sakti hai.</p>
             </div>
           </div>
         </section>
