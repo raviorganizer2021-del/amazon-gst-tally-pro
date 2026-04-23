@@ -5,6 +5,7 @@ const state = {
     b2c: { columns: [], mapping: {} },
     str: { columns: [], mapping: {} }
   },
+  companyProfiles: [],
   processed: null
 };
 
@@ -84,8 +85,10 @@ const $ = (id) => document.getElementById(id);
 
 document.addEventListener("DOMContentLoaded", () => {
   initializeDefaults();
+  loadCompanyProfiles();
   bindEvents();
   renderSidebar();
+  renderCompanyCards();
 });
 
 function initializeDefaults() {
@@ -105,6 +108,7 @@ function bindEvents() {
   $("downloadLedgersBtn").addEventListener("click", () => downloadCsv("ledgers.csv", state.processed?.ledgers || []));
   $("downloadVouchersBtn").addEventListener("click", () => downloadCsv("vouchers.csv", state.processed?.vouchers || []));
   $("saveRunBtn").addEventListener("click", saveRunHistory);
+  $("addCompanyBtn").addEventListener("click", addCompanyProfile);
   $("downloadTallyBtn").addEventListener("click", () => {
     if (!state.processed?.xml) return alert("Process reports before downloading XML.");
     downloadText("amazon-tally-import.xml", state.processed.xml, "application/xml");
@@ -174,7 +178,7 @@ function processReports() {
   const gstReturns = buildGstReturns(rows);
   const sellerExports = buildSellerExports(rows, ledgers);
   const xml = buildTallyXml({
-    companyName: $("tallyCompanyName").value.trim() || $("companyName").value.trim(),
+    companyName: getActiveCompanyName(),
     ledgers,
     vouchers
   });
@@ -421,14 +425,16 @@ function summarize3bBucket(bucket, rows) {
 function buildSellerExports(rows, ledgers) {
   return Object.entries(groupBy(rows, (row) => row.sellerGstin)).map(([sellerGstin, sellerRows]) => {
     const sellerVouchers = buildVouchers(sellerRows);
+    const companyProfile = getCompanyProfileForSellerGstin(sellerGstin);
     return {
       sellerGstin,
+      companyName: companyProfile?.name || getActiveCompanyName(sellerGstin),
       b2b: stateSafeCsv(buildGstReturns(sellerRows).gstr1.b2b),
       b2cs: stateSafeCsv(buildGstReturns(sellerRows).gstr1.b2cs),
       hsn: stateSafeCsv(buildGstReturns(sellerRows).gstr1.hsn),
       gstr3b: buildGstReturns(sellerRows).gstr3b,
       xml: buildTallyXml({
-        companyName: $("tallyCompanyName").value.trim() || $("companyName").value.trim(),
+        companyName: companyProfile?.name || getActiveCompanyName(sellerGstin),
         ledgers,
         vouchers: sellerVouchers
       })
@@ -506,6 +512,7 @@ function renderProcessedData() {
   renderSellerDownloadCards(sellerExports);
   $("xmlPreview").textContent = xml;
   $("saveStatus").textContent = "Run ready hai. Save Run History button se Supabase me store kar sakte hain.";
+  renderCompanySellerOptions(rows);
 }
 
 function renderSellerFilter(rows) {
@@ -619,7 +626,7 @@ function renderSellerDownloadCards(exportsBySeller) {
   root.innerHTML = exportsBySeller.map((item, index) => `
     <article class="seller-card">
       <strong>${item.sellerGstin}</strong>
-      <span>Separate B2B, B2CS, HSN, GSTR-3B and Tally XML download.</span>
+      <span>${item.companyName}</span>
       <div class="seller-actions">
         <button class="btn btn-ghost" data-export="${index}" data-kind="b2b">B2B CSV</button>
         <button class="btn btn-ghost" data-export="${index}" data-kind="b2cs">B2CS CSV</button>
@@ -856,4 +863,97 @@ function loadDemoData() {
   updateUploadStats();
   renderMappingReview();
   processReports();
+}
+
+function loadCompanyProfiles() {
+  try {
+    state.companyProfiles = JSON.parse(localStorage.getItem("amazon-gst-tally-companies") || "[]");
+  } catch {
+    state.companyProfiles = [];
+  }
+}
+
+function saveCompanyProfiles() {
+  localStorage.setItem("amazon-gst-tally-companies", JSON.stringify(state.companyProfiles));
+}
+
+function addCompanyProfile() {
+  const name = $("tallyCompanyName").value.trim();
+  const gstin = sanitizeGstin($("tallyCompanyGstin").value);
+  const sellerGstin = sanitizeGstin($("companySellerGstin").value);
+  if (!name) {
+    $("saveStatus").textContent = "Company name required hai.";
+    return;
+  }
+  const profile = { id: sellerGstin || `ALL-${Date.now()}`, name, gstin, sellerGstin };
+  const index = state.companyProfiles.findIndex((item) => item.sellerGstin === sellerGstin && sellerGstin);
+  if (index >= 0) state.companyProfiles[index] = profile;
+  else state.companyProfiles.push(profile);
+  saveCompanyProfiles();
+  renderCompanyCards();
+  $("saveStatus").textContent = sellerGstin
+    ? `Company profile ${sellerGstin} ke liye save ho gayi.`
+    : "Default company profile save ho gayi.";
+}
+
+function renderCompanyCards() {
+  const root = $("companyCards");
+  if (!root) return;
+  if (!state.companyProfiles.length) {
+    root.innerHTML = `<div class="empty-cell">Abhi koi company saved nahi hai.</div>`;
+    return;
+  }
+  root.innerHTML = state.companyProfiles.map((item, index) => `
+    <article class="seller-card">
+      <strong>${item.name}</strong>
+      <span>Seller GSTIN: ${item.sellerGstin || "All Seller GSTINs"}</span>
+      <span>Company GSTIN: ${item.gstin || "Not set"}</span>
+      <div class="seller-actions">
+        <button class="btn btn-ghost" data-company-select="${index}">Use</button>
+        <button class="btn btn-ghost" data-company-delete="${index}">Delete</button>
+      </div>
+    </article>`).join("");
+  root.querySelectorAll("button[data-company-select]").forEach((button) => {
+    button.addEventListener("click", () => selectCompanyProfile(Number(button.dataset.companySelect)));
+  });
+  root.querySelectorAll("button[data-company-delete]").forEach((button) => {
+    button.addEventListener("click", () => deleteCompanyProfile(Number(button.dataset.companyDelete)));
+  });
+}
+
+function selectCompanyProfile(index) {
+  const item = state.companyProfiles[index];
+  if (!item) return;
+  $("tallyCompanyName").value = item.name || "";
+  $("tallyCompanyGstin").value = item.gstin || "";
+  $("companySellerGstin").value = item.sellerGstin || "";
+  $("saveStatus").textContent = `${item.name} selected.`;
+}
+
+function deleteCompanyProfile(index) {
+  state.companyProfiles.splice(index, 1);
+  saveCompanyProfiles();
+  renderCompanyCards();
+  $("saveStatus").textContent = "Company profile delete ho gayi.";
+}
+
+function renderCompanySellerOptions(rows) {
+  const select = $("companySellerGstin");
+  if (!select) return;
+  const current = select.value || "";
+  const gstins = [...new Set(rows.map((row) => row.sellerGstin))].sort();
+  select.innerHTML = `<option value="">Select Seller GSTIN</option>${gstins.map((gstin) => `<option value="${gstin}">${gstin}</option>`).join("")}`;
+  select.value = gstins.includes(current) ? current : "";
+}
+
+function getCompanyProfileForSellerGstin(sellerGstin) {
+  return state.companyProfiles.find((item) => item.sellerGstin === sellerGstin)
+    || state.companyProfiles.find((item) => !item.sellerGstin)
+    || null;
+}
+
+function getActiveCompanyName(sellerGstin = "") {
+  return getCompanyProfileForSellerGstin(sellerGstin)?.name
+    || $("tallyCompanyName").value.trim()
+    || $("companyName").value.trim();
 }
