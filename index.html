@@ -1,0 +1,461 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Amazon GST to Tally Pro</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="./styles.css">
+  <script defer src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
+  <script defer src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+  <script defer src="./app.js"></script>
+</head>
+<body>
+  <div class="app-shell">
+    <header class="topbar">
+      <div class="brand">
+        <div class="brand-mark">GST</div>
+        <div>
+          <strong>Amazon GST to Tally Pro</strong>
+          <span>Amazon-only return and Tally automation</span>
+        </div>
+      </div>
+      <nav class="topnav">
+        <a href="#overview">Dashboard</a>
+        <a href="#import">Import Data</a>
+        <a href="#customize">Customize Master</a>
+        <a href="#reports">Reports</a>
+      </nav>
+    </header>
+
+    <section class="hero-banner" id="overview">
+      <div>
+        <p class="eyebrow">Amazon Online Seller + eCom to Tally</p>
+        <h1>Single workspace for Amazon GST returns, seller GSTIN-wise exports, and Tally XML.</h1>
+        <p class="hero-text">
+          Upload `Amazon MTR B2B`, `MTR B2C`, and `STR` reports, auto-classify vouchers, prepare GSTR-1 and GSTR-3B,
+          customize ledgers, and download GSTIN-wise files for each seller registration.
+        </p>
+        <div class="hero-actions">
+          <button class="btn btn-primary" id="processBtn">Process Amazon Reports</button>
+          <button class="btn btn-secondary" id="demoFillBtn">Load Demo Data</button>
+        </div>
+      </div>
+      <div class="hero-pillbox">
+        <div class="pill-card">
+          <span>Imported Reports</span>
+          <strong id="uploadedCount">0</strong>
+        </div>
+        <div class="pill-card">
+          <span>Rows Parsed</span>
+          <strong id="rowsParsed">0</strong>
+        </div>
+        <div class="pill-card">
+          <span>GST Liability</span>
+          <strong id="gstLiability">0.00</strong>
+        </div>
+      </div>
+    </section>
+
+    <main class="workspace-grid">
+      <aside class="sidebar card">
+        <h2>Dashboard</h2>
+        <div class="sidebar-group">
+          <span>GST Online Seller</span>
+          <button class="side-link is-active" data-target="profileSection">GST Profile</button>
+          <button class="side-link" data-target="importSection">Import Data</button>
+          <button class="side-link" data-target="reportsSection">GSTR Reports</button>
+        </div>
+        <div class="sidebar-group">
+          <span>eCom to Tally</span>
+          <button class="side-link" data-target="companySection">Tally Company</button>
+          <button class="side-link" data-target="manageSection">Manage Data</button>
+          <button class="side-link" data-target="customizeSection">Customize Master</button>
+          <button class="side-link" data-target="exportsSection">Generate XML</button>
+        </div>
+      </aside>
+
+      <section class="main-stack">
+        <section class="card section-panel" id="profileSection">
+          <div class="section-header">
+            <div>
+              <p class="eyebrow">GST Profile</p>
+              <h2>Seller GSTIN selection and return period</h2>
+            </div>
+          </div>
+          <div class="form-grid profile-grid">
+            <label>
+              <span>Return Filing Type</span>
+              <select id="filingType">
+                <option value="monthly">Monthly</option>
+                <option value="quarterly">Quarterly</option>
+              </select>
+            </label>
+            <label>
+              <span>Return Month</span>
+              <input type="month" id="returnMonth">
+            </label>
+            <label>
+              <span>Primary Seller GSTIN</span>
+              <select id="sellerFilter">
+                <option value="ALL">All Seller GSTINs</option>
+              </select>
+            </label>
+            <label>
+              <span>Company Name</span>
+              <input type="text" id="companyName" value="My Amazon GST Business">
+            </label>
+          </div>
+          <div class="stats-row" id="gstinCards"></div>
+        </section>
+
+        <section class="card section-panel" id="companySection">
+          <div class="section-header">
+            <div>
+              <p class="eyebrow">Tally Company</p>
+              <h2>Company master for GSTIN-wise Tally import</h2>
+            </div>
+          </div>
+          <div class="form-grid">
+            <label>
+              <span>Tally Company Name</span>
+              <input type="text" id="tallyCompanyName" value="My Amazon GST Business">
+            </label>
+            <label>
+              <span>Company GSTIN</span>
+              <input type="text" id="tallyCompanyGstin" placeholder="Leave blank to support all GSTINs">
+            </label>
+            <label>
+              <span>Map To Seller GSTIN</span>
+              <select id="companySellerGstin">
+                <option value="">Select Seller GSTIN</option>
+              </select>
+            </label>
+            <label>
+              <span>Voucher Date Fallback</span>
+              <input type="date" id="defaultDate">
+            </label>
+            <label>
+              <span>Export Mode</span>
+              <select id="exportMode">
+                <option value="both">Tally XML + CSV</option>
+                <option value="xml">Only Tally XML</option>
+                <option value="csv">Only CSV</option>
+              </select>
+            </label>
+            </div>
+            <div class="action-row">
+              <button class="btn btn-primary" id="addCompanyBtn">Add Company</button>
+              <button class="btn btn-ghost" id="saveRunBtn">Save Run History</button>
+              <span class="subtle" id="saveStatus">Vercel API ke through Supabase save yahan show hoga.</span>
+            </div>
+            <div class="table-card">
+              <h3>Saved Company Profiles</h3>
+              <div class="seller-downloads" id="companyCards">
+                <div class="empty-cell">Abhi koi company saved nahi hai.</div>
+              </div>
+            </div>
+          </section>
+
+        <section class="card section-panel" id="importSection">
+          <div class="section-header" id="import">
+            <div>
+              <p class="eyebrow">Import Data</p>
+              <h2>Amazon-only report upload</h2>
+            </div>
+          </div>
+          <div class="import-grid">
+            <label class="import-card">
+              <strong>Amazon MTR B2C</strong>
+              <span>B2C sales and refund report</span>
+              <input type="file" id="b2cFile" accept=".csv,.xlsx,.xls">
+            </label>
+            <label class="import-card">
+              <strong>Amazon MTR B2B</strong>
+              <span>B2B invoice and credit note report</span>
+              <input type="file" id="b2bFile" accept=".csv,.xlsx,.xls">
+            </label>
+            <label class="import-card">
+              <strong>Amazon STR</strong>
+              <span>Stock transfer and branch transfer report</span>
+              <input type="file" id="strFile" accept=".csv,.xlsx,.xls">
+            </label>
+          </div>
+        </section>
+
+        <section class="card section-panel" id="manageSection">
+          <div class="section-header">
+            <div>
+              <p class="eyebrow">Manage Data</p>
+              <h2>Manage imported Amazon data before XML generation</h2>
+            </div>
+          </div>
+          <div class="manage-grid">
+            <article class="manage-card">
+              <strong>Manage Invoices</strong>
+              <p>Review processed invoices and voucher classification.</p>
+              <span id="invoiceCountLabel">No data processed</span>
+            </article>
+            <article class="manage-card">
+              <strong>Seller GSTIN Summary</strong>
+              <p>Split B2B, B2C, STR, tax and totals GSTIN-wise.</p>
+              <span id="sellerSummaryCountLabel">No GSTIN groups yet</span>
+            </article>
+            <article class="manage-card">
+              <strong>Mapping Review</strong>
+              <p>Verify exact Amazon column matches before final export.</p>
+              <button class="btn btn-ghost" id="downloadMappingsBtn">Download Mapping JSON</button>
+            </article>
+          </div>
+        </section>
+
+        <section class="card section-panel" id="customizeSection">
+          <div class="section-header" id="customize">
+            <div>
+              <p class="eyebrow">Customize Master</p>
+              <h2>Customizable master ledger and voucher naming</h2>
+            </div>
+          </div>
+          <div class="form-grid">
+            <label>
+              <span>Sales Ledger</span>
+              <input type="text" id="salesLedgerName" value="Amazon Sales">
+            </label>
+            <label>
+              <span>Sales Return Ledger</span>
+              <input type="text" id="salesReturnLedgerName" value="Amazon Sales Return">
+            </label>
+            <label>
+              <span>TCS Ledger</span>
+              <input type="text" id="tcsLedgerName" value="Amazon TCS Receivable">
+            </label>
+            <label>
+              <span>Amazon Settlement Ledger</span>
+              <input type="text" id="amazonLedgerName" value="Amazon Marketplace">
+            </label>
+            <label>
+              <span>Debit Note Voucher Name</span>
+              <input type="text" id="debitVoucherName" value="Debit Note">
+            </label>
+            <label>
+              <span>Credit Note Voucher Name</span>
+              <input type="text" id="creditVoucherName" value="Credit Note">
+            </label>
+            <label>
+              <span>Sales Voucher Name</span>
+              <input type="text" id="salesVoucherName" value="Sales">
+            </label>
+            <label>
+              <span>Return Voucher Name</span>
+              <input type="text" id="returnVoucherName" value="Credit Note">
+            </label>
+            <label>
+              <span>TCS Voucher Name</span>
+              <input type="text" id="tcsVoucherName" value="Journal">
+            </label>
+            <label>
+              <span>Stock Journal Name</span>
+              <input type="text" id="stockVoucherName" value="Stock Journal">
+            </label>
+            <label>
+              <span>Party Ledger Group</span>
+              <select id="ledgerGroup">
+                <option value="Sundry Debtors">Sundry Debtors</option>
+                <option value="Sundry Creditors">Sundry Creditors</option>
+              </select>
+            </label>
+            <label>
+              <span>Processing Scope</span>
+              <select id="processingScope">
+                <option value="all">All Uploaded Reports</option>
+                <option value="b2b">Only B2B</option>
+                <option value="b2c">Only B2C</option>
+                <option value="str">Only STR</option>
+              </select>
+            </label>
+          </div>
+        </section>
+
+        <section class="card section-panel" id="reportsSection">
+          <div class="section-header" id="reports">
+            <div>
+              <p class="eyebrow">GSTR Reports</p>
+              <h2>GSTR-1 and GSTR-3B with seller GSTIN-wise outputs</h2>
+            </div>
+            <div class="action-row">
+              <button class="btn btn-ghost" id="downloadSummaryBtn">GST Summary JSON</button>
+              <button class="btn btn-ghost" id="downloadGstr1Btn">GSTR-1 JSON</button>
+              <button class="btn btn-ghost" id="downloadGstr3bBtn">GSTR-3B JSON</button>
+            </div>
+          </div>
+          <div class="table-card">
+            <h3>Seller GSTIN Summary</h3>
+            <table class="data-table" id="sellerSummaryTable">
+              <thead>
+                <tr>
+                  <th>Seller GSTIN</th>
+                  <th>Rows</th>
+                  <th>B2B</th>
+                  <th>B2C</th>
+                  <th>STR</th>
+                  <th>Taxable</th>
+                  <th>IGST</th>
+                  <th>CGST</th>
+                  <th>SGST</th>
+                  <th>Total</th>
+                </tr>
+              </thead>
+              <tbody><tr><td colspan="10" class="empty-cell">No seller GSTIN summary yet.</td></tr></tbody>
+            </table>
+          </div>
+          <div class="table-card">
+            <h3>GSTR-1 B2B</h3>
+            <table class="data-table" id="gstr1B2BTable">
+              <thead>
+                <tr>
+                  <th>Seller GSTIN</th>
+                  <th>Buyer GSTIN</th>
+                  <th>Invoice</th>
+                  <th>Date</th>
+                  <th>POS</th>
+                  <th>Taxable</th>
+                  <th>Tax</th>
+                  <th>Total</th>
+                </tr>
+              </thead>
+              <tbody><tr><td colspan="8" class="empty-cell">No B2B rows yet.</td></tr></tbody>
+            </table>
+          </div>
+          <div class="dual-grid">
+            <div class="table-card">
+              <h3>GSTR-1 B2CS</h3>
+              <table class="data-table" id="gstr1B2CSTable">
+                <thead>
+                  <tr>
+                    <th>Seller GSTIN</th>
+                    <th>POS</th>
+                    <th>Rate</th>
+                    <th>Transactions</th>
+                    <th>Taxable</th>
+                    <th>Tax</th>
+                    <th>Total</th>
+                  </tr>
+                </thead>
+                <tbody><tr><td colspan="7" class="empty-cell">No B2CS rows yet.</td></tr></tbody>
+              </table>
+            </div>
+            <div class="table-card">
+              <h3>GSTR-3B Summary</h3>
+              <table class="data-table" id="gstr3bTable">
+                <thead>
+                  <tr>
+                    <th>Bucket</th>
+                    <th>Taxable</th>
+                    <th>IGST</th>
+                    <th>CGST</th>
+                    <th>SGST</th>
+                    <th>Total</th>
+                  </tr>
+                </thead>
+                <tbody><tr><td colspan="6" class="empty-cell">No GSTR-3B summary yet.</td></tr></tbody>
+              </table>
+            </div>
+          </div>
+          <div class="table-card">
+            <h3>HSN Summary</h3>
+            <table class="data-table" id="hsnTable">
+              <thead>
+                <tr>
+                  <th>Seller GSTIN</th>
+                  <th>HSN</th>
+                  <th>Description</th>
+                  <th>Qty</th>
+                  <th>Taxable</th>
+                  <th>Tax</th>
+                  <th>Total</th>
+                </tr>
+              </thead>
+              <tbody><tr><td colspan="7" class="empty-cell">No HSN rows yet.</td></tr></tbody>
+            </table>
+          </div>
+        </section>
+
+        <section class="card section-panel" id="exportsSection">
+          <div class="section-header">
+            <div>
+              <p class="eyebrow">Generate XML</p>
+              <h2>Voucher support, GSTIN-wise files, and Tally export</h2>
+            </div>
+            <div class="action-row">
+              <button class="btn btn-ghost" id="downloadLedgersBtn">Ledger CSV</button>
+              <button class="btn btn-ghost" id="downloadVouchersBtn">Voucher CSV</button>
+              <button class="btn btn-primary" id="downloadTallyBtn">Combined Tally XML</button>
+            </div>
+          </div>
+          <div class="table-card">
+            <h3>Voucher Type Summary</h3>
+            <table class="data-table" id="voucherTypeTable">
+              <thead>
+                <tr>
+                  <th>Voucher Type</th>
+                  <th>Count</th>
+                  <th>Total Amount</th>
+                </tr>
+              </thead>
+              <tbody><tr><td colspan="3" class="empty-cell">No voucher summary yet.</td></tr></tbody>
+            </table>
+          </div>
+          <div class="table-card">
+            <h3>Seller GSTIN-wise Downloads</h3>
+            <p class="subtle">Download separate files like `06AAHFO5288K1ZQ-B2B.csv`, `07AAHFO5288K1ZO-GSTR3B.json`, and GSTIN-wise Tally XML.</p>
+            <div class="seller-downloads" id="sellerDownloads">
+              <div class="empty-cell">No GSTIN-wise download cards yet.</div>
+            </div>
+          </div>
+          <div class="table-card">
+            <h3>GST Portal Treatment Check</h3>
+            <div class="subtle">
+              <p><strong>B2B refund/cancel:</strong> registered customer ke liye credit note/debit note route rakhna chahiye.</p>
+              <p><strong>B2C refund/cancel:</strong> unregistered large cases me separate credit/debit note, aur small B2C cases me net reporting apply ho sakti hai.</p>
+            </div>
+          </div>
+        </section>
+
+        <section class="card section-panel">
+          <div class="section-header">
+            <div>
+              <p class="eyebrow">Mapping Review</p>
+              <h2>Detected columns from uploaded Amazon reports</h2>
+            </div>
+          </div>
+          <div class="triple-grid">
+            <div class="table-card">
+              <h3>Amazon B2B</h3>
+              <table class="data-table" id="mappingTableB2B">
+                <thead><tr><th>Field</th><th>Column</th><th>Status</th></tr></thead>
+                <tbody><tr><td colspan="3" class="empty-cell">Upload B2B file to inspect mapping.</td></tr></tbody>
+              </table>
+            </div>
+            <div class="table-card">
+              <h3>Amazon B2C</h3>
+              <table class="data-table" id="mappingTableB2C">
+                <thead><tr><th>Field</th><th>Column</th><th>Status</th></tr></thead>
+                <tbody><tr><td colspan="3" class="empty-cell">Upload B2C file to inspect mapping.</td></tr></tbody>
+              </table>
+            </div>
+            <div class="table-card">
+              <h3>Amazon STR</h3>
+              <table class="data-table" id="mappingTableSTR">
+                <thead><tr><th>Field</th><th>Column</th><th>Status</th></tr></thead>
+                <tbody><tr><td colspan="3" class="empty-cell">Upload STR file to inspect mapping.</td></tr></tbody>
+              </table>
+            </div>
+          </div>
+        </section>
+      </section>
+    </main>
+  </div>
+</body>
+</html>
